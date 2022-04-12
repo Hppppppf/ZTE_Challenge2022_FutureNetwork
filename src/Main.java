@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -48,7 +49,7 @@ public class Main {
         Double DelayResult = 0.0;
         for (int i = 0; i < 3; i++) {
             for (int j = 1; j < 3; j++) {
-                Double temp = computeTotalDelay(posList.get(0), posList.get(j), timeList.get(i));
+                Double temp = computeTotalDelay2(posList.get(0), posList.get(j), timeList.get(i));
                 DelayResult += temp;
                 DecimalFormat decimalFormat = new DecimalFormat("#.0000");
                 String out = timeList.get(i) + "," + 0 + "," + j + "," + decimalFormat.format(temp) + "\n";
@@ -61,7 +62,7 @@ public class Main {
                 output = "";
             }
         }
-        //System.out.print("DelayResultL:"+DelayResult);
+        System.out.print("DelayResultL:" + DelayResult);
     }
 
     /**
@@ -77,6 +78,7 @@ public class Main {
         Double delay = 0.0;
         //可用无人机位置
         List<List<Integer>> availableUAV = new ArrayList<>(computeAvailableUAVsforBase(time, D, start));
+        //List<Integer> selectedUAV = new ArrayList<>(selectUAV2(availableUAV,start, end, time,computeDistance(start,end)));
         List<Integer> selectedUAV = new ArrayList<>(selectUAV(availableUAV, end, time));
         Double delayTemp = computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), start);
         delay += delayTemp;
@@ -89,6 +91,7 @@ public class Main {
                 computePos(time + computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end), selectedUAV.get(0), selectedUAV.get(1))
                 , end) > D) {
             List<List<Integer>> availableUAV_temp = new ArrayList<>(computeAvailableUAVsforUAV(time, d, Arrays.asList(selectedUAV.get(0), selectedUAV.get(1))));
+            //List<Integer> selectedUAV_temp = new ArrayList<>(selectUAV2(availableUAV_temp, start, end, time,computeDistance(computePos(time,selectedUAV.get(0),selectedUAV.get(1)),end)));
             List<Integer> selectedUAV_temp = new ArrayList<>(selectUAV(availableUAV_temp, end, time));
             List<Integer> preUAV = new ArrayList<>(selectedUAV);
             selectedUAV.clear();
@@ -98,12 +101,54 @@ public class Main {
             time += delay_temp;
             out = "(" + df.format(time) + "," + selectedUAV.get(0) + "," + selectedUAV.get(1) + "),";
             output += out;
-            //System.out.println(computeDistance(computePos(time,selectedUAV.get(0),selectedUAV.get(1)),end));
-
-
+            //System.out.println(computeDistance(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end));
         }
         delay += computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end);
         return delay;
+    }
+
+    public static Double computeTotalDelay2(List<Double> start, List<Double> end, Double time) {
+
+        Double delay = 0.0;
+        Double delayMin = Double.MAX_VALUE;
+        Double time_t = time;
+        //可用无人机位置
+        List<List<Integer>> availableUAV = new ArrayList<>(computeAvailableUAVsforBase(time, D, start));
+        for (List<Integer> temp : availableUAV){
+            //time = time_t;
+            delay = 0.0;
+            List<Integer> selectedUAV = new ArrayList<>(temp);
+            Double delayTemp = computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), start);
+            delay += delayTemp;
+            time += delayTemp;
+            DecimalFormat df = new DecimalFormat("0.0000");
+            String out = "";
+            out = "(" + df.format(time) + "," + selectedUAV.get(0) + "," + selectedUAV.get(1) + "),";
+            //output += out;
+            while (computeDistance(
+                    computePos(time + computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end), selectedUAV.get(0), selectedUAV.get(1))
+                    , end) > D) {
+                List<List<Integer>> availableUAV_temp = new ArrayList<>(computeAvailableUAVsforUAV(time, d, Arrays.asList(selectedUAV.get(0), selectedUAV.get(1))));
+                //List<Integer> selectedUAV_temp = new ArrayList<>(selectUAV2(availableUAV_temp, start, end, time,computeDistance(computePos(time,selectedUAV.get(0),selectedUAV.get(1)),end)));
+                List<Integer> selectedUAV_temp = new ArrayList<>(selectUAV(availableUAV_temp, end, time));
+                List<Integer> preUAV = new ArrayList<>(selectedUAV);
+                selectedUAV.clear();
+                selectedUAV.addAll(selectedUAV_temp);
+                Double delay_temp = computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), computePos(time, preUAV.get(0), preUAV.get(1)));
+                delay += delay_temp;
+                time += delay_temp;
+                out += "(" + df.format(time) + "," + selectedUAV.get(0) + "," + selectedUAV.get(1) + "),";
+
+                //System.out.println(computeDistance(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end));
+            }
+            delay += computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end);
+            if (delay < delayMin){
+                delayMin = delay;
+                output = "";
+                output += out;
+            }
+        }
+        return delayMin;
     }
 
     /**
@@ -219,17 +264,22 @@ public class Main {
      * @return 无人机序号(m, n)
      */
     public static List<Integer> selectUAV(List<List<Integer>> availableUAVs, List<Double> pos, Double time) {
-        final Double[] minDistance = {Double.MAX_VALUE};
-        List<Integer> ret = new ArrayList<>();
-        availableUAVs.forEach(index -> {
-            if (computeDistance(computePos(time, index.get(0), index.get(1)), pos) < minDistance[0]) {
-                ret.clear();
-                ret.add(index.get(0));
-                ret.add(index.get(1));
-                minDistance[0] = computeDistance(computePos(time, index.get(0), index.get(1)), pos);
-            }
-        });
-        return ret;
+        return availableUAVs.stream()
+                .min((Comparator.comparing(o -> computeDistance(computePos(time, o.get(0), o.get(1)), pos))))
+                .get();
+    }
+
+    public static List<Integer> selectUAV2(List<List<Integer>> availableUAVs, List<Double> pos1, List<Double> pos2, Double time, Double lastDistance) {
+        return availableUAVs
+                .stream()
+                .filter(o->{
+                    Double x0 = computePos(time,o.get(0),o.get(1)).get(0);
+                    Double y0 = computePos(time,o.get(0),o.get(1)).get(1);
+                    System.out.println(x0+","+y0);
+                    return ((x0 - pos1.get(0))*(pos2.get(0) - x0)>=0 && (y0 - pos1.get(1))*(pos2.get(1) - y0)>=0) || computeDistance(Arrays.asList(x0,y0,H),pos2) <= D;
+                })
+                .min((Comparator.comparing(o -> computeDistance(computePos(time, o.get(0), o.get(1)), pos2))))
+                .get();
     }
 
     /**
@@ -243,4 +293,72 @@ public class Main {
         Double ret = tf + computeDistance(pos1, pos2) / 10000.0;
         return ret;
     }
+
+    public static Double computeDistanceToTheDiagonal(List<Double> pos1, List<Double> pos2, List<Double> posOfUAV) {
+        return pointToLine(pos1.get(0), pos1.get(1), pos2.get(0), pos2.get(1), posOfUAV.get(0), posOfUAV.get(1));
+    }
+
+    private static double pointToLine(Double x1, Double y1, Double x2, Double y2, Double x0, Double y0) {
+        double space = 0;
+
+        double a, b, c;
+
+        a = lineSpace(x1, y1, x2, y2);// 线段的长度
+
+        b = lineSpace(x1, y1, x0, y0);// (x1,y1)到点的距离
+
+        c = lineSpace(x2, y2, x0, y0);// (x2,y2)到点的距离
+
+        if (c <= 0.000001 || b <= 0.000001) {
+            space = 0;
+
+            return space;
+
+        }
+
+        if (a <= 0.000001) {
+            space = b;
+
+            return space;
+
+        }
+
+        if (c * c >= a * a + b * b) {
+            space = b;
+
+            return space;
+
+        }
+
+        if (b * b >= a * a + c * c) {
+            space = c;
+
+            return space;
+
+        }
+
+        double p = (a + b + c) / 2;// 半周长
+
+        double s = Math.sqrt(p * (p - a) * (p - b) * (p - c));// 海伦公式求面积
+
+        space = 2 * s / a;// 返回点到线的距离(利用三角形面积公式求高)
+
+        return space;
+
+    }
+
+// 计算两点之间的距离
+
+    private static double lineSpace(Double x1, Double y1, Double x2, Double y2) {
+        double lineLength = 0;
+
+        lineLength = Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2)
+
+                * (y1 - y2));
+
+        return lineLength;
+
+    }
+
+
 }
