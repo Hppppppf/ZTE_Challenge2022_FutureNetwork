@@ -1,10 +1,9 @@
 import java.io.FileWriter;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Hppppppf
@@ -50,9 +49,9 @@ public class Main {
         for (int i = 0; i < 3; i++) {
             for (int j = 1; j < 3; j++) {
                 Double temp = computeTotalDelay2(posList.get(0), posList.get(j), timeList.get(i));
+                temp = dataProcessing(temp);
                 DelayResult += temp;
-                DecimalFormat decimalFormat = new DecimalFormat("#.0000");
-                String out = timeList.get(i) + "," + 0 + "," + j + "," + decimalFormat.format(temp) + "\n";
+                String out = timeList.get(i) + "," + 0 + "," + j + "," + temp + "\n";
                 System.out.print(out);
                 String output_t = output.substring(0, output.length() - 1);
                 System.out.println(output_t);
@@ -62,8 +61,176 @@ public class Main {
                 output = "";
             }
         }
-        System.out.print("DelayResultL:" + DelayResult);
+        //System.out.print("DelayResultL:" + dataProcessing(DelayResult));
     }
+
+    public static Double computeTotalDelay2(List<Double> start, List<Double> end, Double time) {
+        /**
+         * 1.划范围
+         * 2.设置初始无人机
+         * 3.迭代->判断是否进入end范围
+         */
+        List<Integer> delineation = delineation(start, end, time);
+        int m_min = delineation.get(0);
+        int m_max = delineation.get(1);
+        int n_min = delineation.get(2);
+        int n_max = delineation.get(3);
+
+        if (start.get(0) > end.get(0)) {
+            m_min -= 2;
+        }
+
+        //time时刻，以Start Base为起点的各无人机时延表
+        DelayTable delayTable = new DelayTable(time, m_min - 1, m_max + 1, n_min - 1, n_max + 1);
+
+        Stack<List<Integer>> UAVstack = new Stack<>();
+
+        List<List<Integer>> availableUAVsForStartBase = computeAvailableUAVsforBase(time, D, start);
+        availableUAVsForStartBase.forEach(uav -> {
+            Double delay = computeDelay(computePos(time, uav.get(0), uav.get(1)), start);
+            delayTable.setDelay(uav.get(0), uav.get(1), delay, Arrays.asList(Integer.MAX_VALUE, Integer.MAX_VALUE));
+            UAVstack.push(uav);
+        });
+        Double totalDelay = Double.MAX_VALUE;
+        List<Integer> UAVsforEnd = new ArrayList<>();
+        while (!UAVstack.isEmpty()) {
+            List<Integer> uav = UAVstack.pop();
+            int m = uav.get(0);
+            int n = uav.get(1);
+            Double lastDelay = delayTable.getDelay(m, n);
+            Double newTime = time + lastDelay;
+            List<List<Integer>> availableUAVs = computeAvailableUAVsforUAV(newTime, d, uav);
+            for (int i = 0; i < availableUAVs.size(); i++) {
+                List<Integer> availableUav = availableUAVs.get(i);
+                if (delayTable.isValid(availableUav.get(0), availableUav.get(1))) {
+                    int _m = availableUav.get(0);
+                    int _n = availableUav.get(1);
+                    Double newDelay = computeDelay(computePos(newTime, _m, _n), computePos(newTime, m, n));
+                    if (newDelay + delayTable.getDelay(m, n) < delayTable.getDelay(_m, _n)) {
+                        UAVstack.push(Arrays.asList(_m, _n));
+                        delayTable.setDelay(_m, _n, newDelay + delayTable.getDelay(m, n), uav);
+                        if (computeDistance(end, computePos(newTime + computeDelay(computePos(newTime, _m, _n), end), _m, _n)) < D) {
+                            Double delayTemp = delayTable.getDelay(_m, _n) + computeDelay(computePos(newTime, _m, _n), end);
+                            if (delayTemp < totalDelay) {
+                                totalDelay = delayTemp;
+                                UAVsforEnd.clear();
+                                UAVsforEnd.add(_m);
+                                UAVsforEnd.add(_n);
+                                //System.out.println(Arrays.asList(_m,_n)+""+newTime+computeDelay(computePos(newTime,_m,_n),end));
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
+
+        /*UAVsforEnd.sort((o1, o2) -> {
+            Double o1Time = delayTable.getDelayByList(o1)+computeDelay(end,computePos(time+delayTable.getDelayByList(o1),o1.get(0),o1.get(1)));
+            Double o2Time = delayTable.getDelayByList(o2)+computeDelay(end,computePos(time+delayTable.getDelayByList(o2),o2.get(0),o2.get(1)));
+            return (int) (o1Time - o2Time);
+        });*/
+
+        List<Integer> ret = UAVsforEnd;
+
+        Stack<List<Integer>> route = new Stack<>();
+        route.push(ret);
+        while (delayTable.getPre(ret).get(0) < 100) {
+            route.push(delayTable.getPre(ret));
+            ret = delayTable.getPre(ret);
+        }
+        while (!route.isEmpty()) {
+            List<Integer> uav = route.pop();
+            output += "(" + dataProcessing(delayTable.getDelayByList(uav) + time) + "," + uav.get(0) + "," + uav.get(1) + "),";
+        }
+        return totalDelay;
+    }
+
+    static class DelayTable {
+        Double startTime;
+        Double[][] delayTable;
+        HashMap<List<Integer>, List<Integer>> preUAV = new HashMap<>();
+        int m_min, m_max, n_min, n_max;
+
+        public DelayTable(Double startTime, int m_min, int m_max, int n_min, int n_max) {
+            this.startTime = startTime;
+            this.delayTable = new Double[m_max - m_min + 1][n_max - n_min + 1];
+            this.m_min = m_min;
+            this.n_min = n_min;
+            this.m_max = m_max;
+            this.n_max = n_max;
+            for (int i = 0; i < delayTable.length; i++) {
+                for (int j = 0; j < delayTable[0].length; j++) {
+                    delayTable[i][j] = Double.MAX_VALUE;
+                }
+            }
+        }
+
+        public Double getDelay(int m, int n) {
+            return delayTable[m - m_min][n - n_min];
+        }
+
+        public Double getDelayByList(List<Integer> mn) {
+            return delayTable[mn.get(0) - m_min][mn.get(1) - n_min];
+        }
+
+        public void setDelay(int m, int n, Double delay, List<Integer> pre) {
+            this.delayTable[m - m_min][n - n_min] = delay;
+            this.preUAV.put(Arrays.asList(m, n), pre);
+        }
+
+        public List<Integer> getPre(List<Integer> mn) {
+            return this.preUAV.get(mn);
+        }
+
+        public boolean isValid(int m, int n) {
+            if (m >= m_min && m <= m_max && n >= n_min && n <= n_max)
+                return true;
+            else return false;
+        }
+    }
+
+
+    /**
+     * 划定范围
+     * ________ymax________
+     * | S              ...
+     * xmin               .xmax
+     * |               ...
+     * |              E ..
+     * -------ymin-------
+     *
+     * @param start 起点基站位置
+     * @param end   终点基站位置
+     * @return 边界的m，n编号,m_min,m_max,n_min,n_max
+     */
+    public static List<Integer> delineation(List<Double> start, List<Double> end, Double time) {
+        List<List<Integer>> availableUAVforStatrBase = computeAvailableUAVsforBase(time, D, start);
+        List<List<Integer>> availableUAVforEndBase = computeAvailableUAVsforBase(time, D, end);
+        final int[] x_min = {Integer.MAX_VALUE};
+        final int[] m_max = {0};
+        final int[] n_min = {Integer.MAX_VALUE};
+        final int[] n_max = {0};
+        availableUAVforStatrBase.forEach(num -> {
+            if (num.get(0) < x_min[0]) x_min[0] = num.get(0);
+            else if (num.get(0) > m_max[0]) m_max[0] = num.get(0);
+            if (num.get(1) < n_min[0]) n_min[0] = num.get(1);
+            else if (num.get(1) > n_max[0]) n_max[0] = num.get(1);
+        });
+        availableUAVforEndBase.forEach(num -> {
+            if (num.get(0) < x_min[0]) x_min[0] = num.get(0);
+            else if (num.get(0) > m_max[0]) m_max[0] = num.get(0);
+            if (num.get(1) < n_min[0]) n_min[0] = num.get(1);
+            else if (num.get(1) > n_max[0]) n_max[0] = num.get(1);
+        });
+        List<Integer> ret = new ArrayList<>();
+        ret.add(x_min[0]);
+        ret.add(m_max[0]);
+        ret.add(n_min[0]);
+        ret.add(n_max[0]);
+        return ret;
+    }
+
 
     /**
      * 计算time时刻基站start到基站end的转发时延
@@ -99,56 +266,14 @@ public class Main {
             Double delay_temp = computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), computePos(time, preUAV.get(0), preUAV.get(1)));
             delay += delay_temp;
             time += delay_temp;
-            out = "(" + df.format(time) + "," + selectedUAV.get(0) + "," + selectedUAV.get(1) + "),";
+            BigDecimal bigDecimal = new BigDecimal(time);
+            bigDecimal = bigDecimal.setScale(4, BigDecimal.ROUND_DOWN);
+            out = "(" + df.format(bigDecimal) + "," + selectedUAV.get(0) + "," + selectedUAV.get(1) + "),";
             output += out;
             //System.out.println(computeDistance(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end));
         }
         delay += computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end);
         return delay;
-    }
-
-    public static Double computeTotalDelay2(List<Double> start, List<Double> end, Double time) {
-
-        Double delay = 0.0;
-        Double delayMin = Double.MAX_VALUE;
-        Double time_t = time;
-        //可用无人机位置
-        List<List<Integer>> availableUAV = new ArrayList<>(computeAvailableUAVsforBase(time, D, start));
-        for (List<Integer> temp : availableUAV){
-            //time = time_t;
-            delay = 0.0;
-            List<Integer> selectedUAV = new ArrayList<>(temp);
-            Double delayTemp = computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), start);
-            delay += delayTemp;
-            time += delayTemp;
-            DecimalFormat df = new DecimalFormat("0.0000");
-            String out = "";
-            out = "(" + df.format(time) + "," + selectedUAV.get(0) + "," + selectedUAV.get(1) + "),";
-            //output += out;
-            while (computeDistance(
-                    computePos(time + computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end), selectedUAV.get(0), selectedUAV.get(1))
-                    , end) > D) {
-                List<List<Integer>> availableUAV_temp = new ArrayList<>(computeAvailableUAVsforUAV(time, d, Arrays.asList(selectedUAV.get(0), selectedUAV.get(1))));
-                //List<Integer> selectedUAV_temp = new ArrayList<>(selectUAV2(availableUAV_temp, start, end, time,computeDistance(computePos(time,selectedUAV.get(0),selectedUAV.get(1)),end)));
-                List<Integer> selectedUAV_temp = new ArrayList<>(selectUAV(availableUAV_temp, end, time));
-                List<Integer> preUAV = new ArrayList<>(selectedUAV);
-                selectedUAV.clear();
-                selectedUAV.addAll(selectedUAV_temp);
-                Double delay_temp = computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), computePos(time, preUAV.get(0), preUAV.get(1)));
-                delay += delay_temp;
-                time += delay_temp;
-                out += "(" + df.format(time) + "," + selectedUAV.get(0) + "," + selectedUAV.get(1) + "),";
-
-                //System.out.println(computeDistance(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end));
-            }
-            delay += computeDelay(computePos(time, selectedUAV.get(0), selectedUAV.get(1)), end);
-            if (delay < delayMin){
-                delayMin = delay;
-                output = "";
-                output += out;
-            }
-        }
-        return delayMin;
     }
 
     /**
@@ -215,7 +340,13 @@ public class Main {
                 if (computeDistance(
                         computePos(time + computeDelay(computePos(time, i, j), pos), i, j)
                         , pos) < distance) {
-                    ret.add(Arrays.asList(i, j));
+                    final int ii = i, jj = j;
+                    ret.add(new ArrayList() {
+                        {
+                            add(ii);
+                            add(jj);
+                        }
+                    });
                 }
             }
         }
@@ -269,19 +400,6 @@ public class Main {
                 .get();
     }
 
-    public static List<Integer> selectUAV2(List<List<Integer>> availableUAVs, List<Double> pos1, List<Double> pos2, Double time, Double lastDistance) {
-        return availableUAVs
-                .stream()
-                .filter(o->{
-                    Double x0 = computePos(time,o.get(0),o.get(1)).get(0);
-                    Double y0 = computePos(time,o.get(0),o.get(1)).get(1);
-                    System.out.println(x0+","+y0);
-                    return ((x0 - pos1.get(0))*(pos2.get(0) - x0)>=0 && (y0 - pos1.get(1))*(pos2.get(1) - y0)>=0) || computeDistance(Arrays.asList(x0,y0,H),pos2) <= D;
-                })
-                .min((Comparator.comparing(o -> computeDistance(computePos(time, o.get(0), o.get(1)), pos2))))
-                .get();
-    }
-
     /**
      * 计算转发时延
      *
@@ -294,71 +412,10 @@ public class Main {
         return ret;
     }
 
-    public static Double computeDistanceToTheDiagonal(List<Double> pos1, List<Double> pos2, List<Double> posOfUAV) {
-        return pointToLine(pos1.get(0), pos1.get(1), pos2.get(0), pos2.get(1), posOfUAV.get(0), posOfUAV.get(1));
+    public static double dataProcessing(Double x) {
+        BigDecimal bigDecimal = new BigDecimal(x);
+        BigDecimal ret = bigDecimal.setScale(4, BigDecimal.ROUND_DOWN);
+        return ret.doubleValue();
     }
-
-    private static double pointToLine(Double x1, Double y1, Double x2, Double y2, Double x0, Double y0) {
-        double space = 0;
-
-        double a, b, c;
-
-        a = lineSpace(x1, y1, x2, y2);// 线段的长度
-
-        b = lineSpace(x1, y1, x0, y0);// (x1,y1)到点的距离
-
-        c = lineSpace(x2, y2, x0, y0);// (x2,y2)到点的距离
-
-        if (c <= 0.000001 || b <= 0.000001) {
-            space = 0;
-
-            return space;
-
-        }
-
-        if (a <= 0.000001) {
-            space = b;
-
-            return space;
-
-        }
-
-        if (c * c >= a * a + b * b) {
-            space = b;
-
-            return space;
-
-        }
-
-        if (b * b >= a * a + c * c) {
-            space = c;
-
-            return space;
-
-        }
-
-        double p = (a + b + c) / 2;// 半周长
-
-        double s = Math.sqrt(p * (p - a) * (p - b) * (p - c));// 海伦公式求面积
-
-        space = 2 * s / a;// 返回点到线的距离(利用三角形面积公式求高)
-
-        return space;
-
-    }
-
-// 计算两点之间的距离
-
-    private static double lineSpace(Double x1, Double y1, Double x2, Double y2) {
-        double lineLength = 0;
-
-        lineLength = Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2)
-
-                * (y1 - y2));
-
-        return lineLength;
-
-    }
-
 
 }
