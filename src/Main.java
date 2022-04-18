@@ -61,9 +61,16 @@ public class Main {
                 output = "";
             }
         }
-        //System.out.print("DelayResultL:" + dataProcessing(DelayResult));
+        System.out.print("DelayResultL:" + dataProcessing(DelayResult));
     }
 
+    /**
+     * 动态规
+     * @param start
+     * @param end
+     * @param time
+     * @return
+     */
     public static Double computeTotalDelay2(List<Double> start, List<Double> end, Double time) {
         /**
          * 1.划范围
@@ -83,18 +90,18 @@ public class Main {
         //time时刻，以Start Base为起点的各无人机时延表
         DelayTable delayTable = new DelayTable(time, m_min - 1, m_max + 1, n_min - 1, n_max + 1);
 
-        Stack<List<Integer>> UAVstack = new Stack<>();
+        Queue<List<Integer>> UAVqueue = new ArrayDeque<>();
 
         List<List<Integer>> availableUAVsForStartBase = computeAvailableUAVsforBase(time, D, start);
         availableUAVsForStartBase.forEach(uav -> {
             Double delay = computeDelay(computePos(time, uav.get(0), uav.get(1)), start);
             delayTable.setDelay(uav.get(0), uav.get(1), delay, Arrays.asList(Integer.MAX_VALUE, Integer.MAX_VALUE));
-            UAVstack.push(uav);
+            UAVqueue.offer(uav);
         });
         Double totalDelay = Double.MAX_VALUE;
         List<Integer> UAVsforEnd = new ArrayList<>();
-        while (!UAVstack.isEmpty()) {
-            List<Integer> uav = UAVstack.pop();
+        while (!UAVqueue.isEmpty()) {
+            List<Integer> uav = UAVqueue.poll();
             int m = uav.get(0);
             int n = uav.get(1);
             Double lastDelay = delayTable.getDelay(m, n);
@@ -107,7 +114,7 @@ public class Main {
                     int _n = availableUav.get(1);
                     Double newDelay = computeDelay(computePos(newTime, _m, _n), computePos(newTime, m, n));
                     if (newDelay + delayTable.getDelay(m, n) < delayTable.getDelay(_m, _n)) {
-                        UAVstack.push(Arrays.asList(_m, _n));
+                        UAVqueue.offer(Arrays.asList(_m, _n));
                         delayTable.setDelay(_m, _n, newDelay + delayTable.getDelay(m, n), uav);
                         if (computeDistance(end, computePos(newTime + computeDelay(computePos(newTime, _m, _n), end), _m, _n)) < D) {
                             Double delayTemp = delayTable.getDelay(_m, _n) + computeDelay(computePos(newTime, _m, _n), end);
