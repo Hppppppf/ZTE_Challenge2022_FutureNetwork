@@ -1,10 +1,8 @@
-import javafx.beans.binding.DoubleExpression;
-
 import java.io.FileWriter;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.stream.Collectors;
+
 
 /**
  * @author Hppppppf
@@ -28,7 +26,7 @@ public class NewMain {
 
     public static Double horizontalDelay = dataProcessing(tf + 0.009);
     public static Double verticalDelay = dataProcessing(tf + 0.008);
-    //w无人机表
+    //无人机表
     public static HashMap<List<Integer>, UAV> uavList;
     //基站位置表
     public static List<Base> baseList;
@@ -36,6 +34,8 @@ public class NewMain {
     public static List<AerialPlatform> aerialPlatforms;
     //开始转发时刻表
     public static List<Double> timeList;
+    //冲突表
+    public static Conflicts conflicts;
 
     public static Double DelayResult;
 
@@ -49,22 +49,67 @@ public class NewMain {
 
     public static void main(String[] args) {
         Init();
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                for (int k = 0; k < 3; k++) {
+                    if (j == k) continue;
+                    for (int l = 0; l < 4; l++) {
+                        //TODO 时延累加；信号量
+                        greedyAlgorithm(baseList.get(j), baseList.get(k), timeList.get(i));
+                    }
+                }
+            }
+        }
     }
 
+    public static void greedyAlgorithm(Base start, Base end, Double startTime) {
+        String ret = "";
+        Double delay = 0.0;
+        UAVandAerialPlatform last = select(start.getAvailableUAVs(startTime), end, startTime);
+        delay += computeDelayByPos(last.getPos(startTime), start.getPos());
+        Double currentTime = startTime + delay;
+        conflicts.add(start, last, startTime, currentTime);
+        ret += "(" + dataProcessing(currentTime) + "," + last + "),";
+        while (computeDistance(last.getPos(currentTime), end.getPos()) > D) {
+            UAVandAerialPlatform pre = last;
+            last = select(last.getAvailable(currentTime), end, currentTime);
+            Double delay_temp = computeDelayBetweenUAVs(pre, last);
+            Double time_s = currentTime;
+            Double time_e = currentTime + delay_temp;
+            while (conflicts.isConflicted(pre, last, time_s, time_e)) {
+                time_s = time_e + 0.01;
+                time_e = time_s + delay_temp;
+            }
+            conflicts.add(pre,last,time_s,time_e);
+            delay += time_e - currentTime;
+            currentTime = time_e;
+            ret += "(" + dataProcessing(currentTime) + "," + last + "),";
+        }
+        ret = ret.substring(0, ret.length() - 1);
+        System.out.println(startTime + "," + start.ID + "," + end.ID + "," + dataProcessing(delay) + "\n" + ret);
+    }
+
+
     /**
-     * 贪心策略，选择距离目的地最近的无人机
+     * 贪心策略选择离终点最近的无人机/高空平台
      *
-     * @param availableUAVs 可用的无人机序号表
-     * @param end         目的地位置
-     * @param time          当前时刻
+     * @param list
+     * @param end
+     * @param time
      * @return
      */
-    public static UAV selectUAV(List<UAV> availableUAVs, Base end, Double time) {
-        return availableUAVs
-                .stream()
-                .min((u1, u2) -> (int) (computeDistance(u1.getPos(time), end.getPos()) - computeDistance(u2.getPos(time), end.getPos())))
-                .get();
+    public static UAVandAerialPlatform select(List<UAVandAerialPlatform> list, Base end, Double time) {
+        return list.stream().min((o1, o2) -> (int) (computeDistance(o1.getPos(time), end.getPos()) - computeDistance(o2.getPos(time), end.getPos()))).get();
     }
+
+    interface UAVandAerialPlatform {
+        public String getID();
+
+        public List<Double> getPos(Double time);
+
+        List<UAVandAerialPlatform> getAvailable(Double time);
+    }
+
     /**
      * 计算两点之间距离
      *
@@ -100,9 +145,8 @@ public class NewMain {
      * @param u2
      * @return
      */
-    public static Double computeDelayBetweenUAVs(UAV u1, UAV u2) {
-        if (u1.ID.get(0) != u2.ID.get(0)) return horizontalDelay;
-        else return verticalDelay;
+    public static Double computeDelayBetweenUAVs(UAVandAerialPlatform u1, UAVandAerialPlatform u2) {
+        return (u1.getID().charAt(0) != u2.getID().charAt(0)) ? horizontalDelay : verticalDelay;
     }
 
     /**
@@ -117,7 +161,29 @@ public class NewMain {
         return ret.doubleValue();
     }
 
-    static class UAV {
+
+    static class Conflicts {
+        public HashMap<String, Integer> conflictMap;
+
+        public Conflicts() {
+            this.conflictMap = new HashMap<>();
+        }
+
+        public void add(Object u1, Object u2, Double time_s, Double time_e) {
+            String key = u1 + ":" + u2 + "|" + dataProcessing(time_s) + "->" + dataProcessing(time_e);
+            conflictMap.put(key, conflictMap.getOrDefault(key, 0) + 1);
+        }
+
+        public boolean isConflicted(Object u1, Object u2, Double time_s, Double time_e) {
+            String key = u1 + ":" + u2 + "|" + dataProcessing(time_s) + "->" + dataProcessing(time_e);
+            if (this.conflictMap.containsKey(key)) {
+                return conflictMap.get(key) >= 3;
+            }
+            return false;
+        }
+    }
+
+    static class UAV implements UAVandAerialPlatform {
 
         public List<Integer> ID;
 
@@ -126,6 +192,7 @@ public class NewMain {
             uavList.put(Arrays.asList(m, n), this);
         }
 
+        @Override
         public List<Double> getPos(Double time) {
             Double x = v * time + ID.get(0) * dIntraOrbit;
             Double y = ID.get(1) * dInterOrbit;
@@ -135,26 +202,30 @@ public class NewMain {
             return pos;
         }
 
-        public List<Integer> getID() {
-            return ID;
+        @Override
+        public List<UAVandAerialPlatform> getAvailable(Double time) {
+            List<UAVandAerialPlatform> list = new ArrayList<>();
+            list.add(new UAV(ID.get(0), ID.get(1) + 1));
+            list.add(new UAV(ID.get(0), ID.get(1) - 1));
+            list.add(new UAV(ID.get(0) - 1, ID.get(1)));
+            list.add(new UAV(ID.get(0) + 1, ID.get(1)));
+            aerialPlatforms.forEach(aerialPlatform -> {
+                if (computeDistance(this.getPos(time), aerialPlatform.pos) < d) list.add(aerialPlatform);
+            });
+            return list;
+        }
+
+        public String getID() {
+            return ID.toString();
         }
 
         @Override
         public String toString() {
             return ID.get(0) + "," + ID.get(1);
         }
-
-        public List<UAV> getAvailableUAVs() {
-            List<UAV> uavs = new ArrayList<>();
-            uavs.add(new UAV(ID.get(0), ID.get(1) + 1));
-            uavs.add(new UAV(ID.get(0), ID.get(1) - 1));
-            uavs.add(new UAV(ID.get(0) - 1, ID.get(1)));
-            uavs.add(new UAV(ID.get(0) + 1, ID.get(1)));
-            return uavs;
-        }
     }
 
-    static class AerialPlatform {
+    static class AerialPlatform implements UAVandAerialPlatform {
         public Integer ID;
         public List<Double> pos;
 
@@ -162,8 +233,20 @@ public class NewMain {
             this.ID = ID;
             this.pos = pos;
         }
-        public List<UAV> getAvailableUAVs(Double time) {
-            List<UAV> ret = new ArrayList<>();
+
+        @Override
+        public String getID() {
+            return ID.toString();
+        }
+
+        @Override
+        public List<Double> getPos(Double time) {
+            return pos;
+        }
+
+        @Override
+        public List<UAVandAerialPlatform> getAvailable(Double time) {
+            List<UAVandAerialPlatform> ret = new ArrayList<>();
             //TODO 是否有其他高空平台在覆盖范围内
             //求m,n范围
 
@@ -179,7 +262,7 @@ public class NewMain {
             for (int i = mMin - 1; i <= mMax; i++) {
                 for (int j = nMin - 1; j <= nMax; j++) {
                     List<Integer> uavID = Arrays.asList(i, j);
-                    if (!uavList.containsKey(uavID)) uavList.put(uavID,new UAV(uavID.get(0),uavID.get(1)));
+                    if (!uavList.containsKey(uavID)) uavList.put(uavID, new UAV(uavID.get(0), uavID.get(1)));
                     UAV uav = uavList.get(uavID);
                     Double newTime = time + computeDelayByPos(this.pos, uav.getPos(time));
                     if (computeDistance(uav.getPos(newTime), this.pos) < D) {
@@ -188,6 +271,11 @@ public class NewMain {
                 }
             }
             return ret;
+        }
+
+        @Override
+        public String toString() {
+            return ID.toString();
         }
     }
 
@@ -200,12 +288,17 @@ public class NewMain {
             this.pos = pos;
         }
 
+        @Override
+        public String toString() {
+            return "Base" + this.ID.toString();
+        }
+
         public List<Double> getPos() {
             return this.pos;
         }
 
-        public List<UAV> getAvailableUAVs(Double time) {
-            List<UAV> ret = new ArrayList<>();
+        public List<UAVandAerialPlatform> getAvailableUAVs(Double time) {
+            List<UAVandAerialPlatform> ret = new ArrayList<>();
             //TODO 是否有高空平台在基站覆盖范围内
             //求m,n范围
 
@@ -221,6 +314,9 @@ public class NewMain {
             for (int i = mMin - 1; i <= mMax; i++) {
                 for (int j = nMin - 1; j <= nMax; j++) {
                     List<Integer> uavID = Arrays.asList(i, j);
+                    if (!uavList.containsKey(uavID)) {
+                        uavList.put(uavID, new UAV(i, j));
+                    }
                     UAV uav = uavList.get(uavID);
                     Double newTime = time + computeDelayByPos(this.pos, uav.getPos(time));
                     if (computeDistance(uav.getPos(newTime), this.pos) < D) {
@@ -237,6 +333,7 @@ public class NewMain {
         aerialPlatforms = new ArrayList<>();
         timeList = new ArrayList<>();
         uavList = new HashMap<>();
+        conflicts = new Conflicts();
 
         baseList.add(new Base(0, Arrays.asList(45.73, 45.26, 0.0)));
         baseList.add(new Base(1, Arrays.asList(1200.0, 700.0, 0.0)));
@@ -254,10 +351,5 @@ public class NewMain {
         timeList.addAll(Arrays.asList(0.0, 4.7, 16.4));
 
         DelayResult = 0.0;
-
-        UAV u1 = new UAV(0, 0);
-        System.out.println(u1.getAvailableUAVs());
-        UAV u2 = uavList.get(Arrays.asList(0, 1));
-        System.out.println(u2);
     }
 }
