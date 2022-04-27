@@ -70,7 +70,7 @@ public class Main {
                 }
             }
         }
-        //System.out.println("totalDelay:" + totalDelay);
+        System.out.println("totalDelay:" + totalDelay);
     }
 
     public static Double greedyAlgorithm(Base start, Base end, Double startTime, Integer signal, Double lastDelay) {
@@ -94,16 +94,23 @@ public class Main {
         while (!(computeDistance(last.getPos(currentTime), end.getPos()) <= D && computeDistance(last.getPos(currentTime + computeDelayByPos(last.getPos(currentTime), end.getPos())), end.getPos()) <= D)) {
             UAVandAerialPlatform pre = last;
             last = select(last.getAvailable(currentTime), end, currentTime);
-            Double delay_temp = computeDelayBetweenUAVs(pre, last);
+            Double delay_temp;
             time_s = currentTime;
+            if (pre.isPlantform() || last.isPlantform()){
+                delay_temp = computeDelayByPos(pre.getPos(time_s), last.getPos(time_s));
+            }else delay_temp = computeDelayBetweenUAVs(pre, last);
             time_e = currentTime + delay_temp;
             while (!conflicts.addConflict(pre, last, time_s, time_e, signal)) {
                 time_s = time_s + adjustmentDelaly;
                 last = select(pre.getAvailable(currentTime), end, currentTime);
-                delay_temp = computeDelayBetweenUAVs(pre, last);
+                if (pre.isPlantform() || last.isPlantform()){
+                    delay_temp = computeDelayByPos(pre.getPos(time_s), last.getPos(time_s));
+                }else delay_temp = computeDelayBetweenUAVs(pre, last);
                 time_e = time_s + delay_temp;
             }
-            if (last.isPlantform() || pre.isPlantform()) System.out.println(pre+ " " + last + " "+ computeDistance(last.getPos(time_e), pre.getPos(time_e)) + " "+computeDistance(last.getPos(time_s), pre.getPos(time_s)));
+            /*if (last.isPlantform() || pre.isPlantform()) {
+                System.out.println(pre+ " " + last + " "+ computeDistance(last.getPos(time_e), pre.getPos(time_e)) + " "+computeDistance(last.getPos(time_s), pre.getPos(time_s)));
+            }*/
             if (computeDistance(last.getPos(time_e), pre.getPos(time_e)) > d || computeDistance(last.getPos(time_s), pre.getPos(time_s)) > d)
                 System.out.println("......................................");
             delay += time_e - currentTime;
@@ -439,14 +446,14 @@ public class Main {
         baseList.add(new Base(1, Arrays.asList(1200.0, 700.0, 0.0)));
         baseList.add(new Base(2, Arrays.asList(-940.0, 1100.0, 0.0)));
         //TODO
-        /*aerialPlatforms.add(new AerialPlatform(0, Arrays.asList(-614.0, 1059.0, 24.0)));
+        aerialPlatforms.add(new AerialPlatform(0, Arrays.asList(-614.0, 1059.0, 24.0)));
         aerialPlatforms.add(new AerialPlatform(1, Arrays.asList(-943.0, 715.0, 12.0)));
         aerialPlatforms.add(new AerialPlatform(2, Arrays.asList(1073.0, 291.0, 37.0)));
         aerialPlatforms.add(new AerialPlatform(3, Arrays.asList(715.0, 129.0, 35.0)));
         aerialPlatforms.add(new AerialPlatform(4, Arrays.asList(186.0, 432.0, 21.0)));
         aerialPlatforms.add(new AerialPlatform(5, Arrays.asList(-923.0, 632.0, 37.0)));
         aerialPlatforms.add(new AerialPlatform(6, Arrays.asList(833.0, 187.0, 24.0)));
-        aerialPlatforms.add(new AerialPlatform(7, Arrays.asList(-63.0, 363.0, 11.0)));*/
+        aerialPlatforms.add(new AerialPlatform(7, Arrays.asList(-63.0, 363.0, 11.0)));
         timeList.addAll(Arrays.asList(0.0, 4.7, 16.4));
 
         DelayResult = 0.0;
