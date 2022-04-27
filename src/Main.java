@@ -3,8 +3,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 
 /**
@@ -96,16 +94,16 @@ public class Main {
             last = select(last.getAvailable(currentTime), end, currentTime);
             Double delay_temp;
             time_s = currentTime;
-            if (pre.isPlantform() || last.isPlantform()){
+            //if (pre.isPlantform() || last.isPlantform()){
                 delay_temp = computeDelayByPos(pre.getPos(time_s), last.getPos(time_s));
-            }else delay_temp = computeDelayBetweenUAVs(pre, last);
+            //}else delay_temp = computeDelayBetweenUAVs(pre, last);
             time_e = currentTime + delay_temp;
             while (!conflicts.addConflict(pre, last, time_s, time_e, signal)) {
                 time_s = time_s + adjustmentDelaly;
                 last = select(pre.getAvailable(currentTime), end, currentTime);
-                if (pre.isPlantform() || last.isPlantform()){
+                //if (pre.isPlantform() || last.isPlantform()){
                     delay_temp = computeDelayByPos(pre.getPos(time_s), last.getPos(time_s));
-                }else delay_temp = computeDelayBetweenUAVs(pre, last);
+                //}else delay_temp = computeDelayBetweenUAVs(pre, last);
                 time_e = time_s + delay_temp;
             }
             /*if (last.isPlantform() || pre.isPlantform()) {
@@ -145,7 +143,7 @@ public class Main {
     }
 
     interface UAVandAerialPlatform {
-        public String getID();
+        public List<Integer> getID();
 
         public List<Double> getPos(Double time);
 
@@ -190,7 +188,7 @@ public class Main {
      * @return
      */
     public static Double computeDelayBetweenUAVs(UAVandAerialPlatform u1, UAVandAerialPlatform u2) {
-        return (u1.getID().charAt(0) != u2.getID().charAt(0)) ? verticalDelay : horizontalDelay;
+        return (u1.getID().get(0) != u2.getID().get(0)) ? verticalDelay : horizontalDelay;
     }
 
     /**
@@ -234,14 +232,6 @@ public class Main {
                     Double time_ss = Double.parseDouble(time.substring(0, time.indexOf('-')));
                     Double time_ee = Double.parseDouble(time.substring(time.indexOf('-') + 1, time.length()));
                     Integer currentSignal = entry.getValue();
-                    /*if (Math.abs(time_s - time_ss) < 0.01 && Math.abs(time_e - time_ee) < 0.01) {
-                        if (currentSignal + signal > c) {
-                            return false;
-                        } else {
-                            entry.setValue(currentSignal + signal);
-                            return true;
-                        }
-                    }*/
                     if (time_s <= time_ss && time_ee <= time_e) {
                         if (currentSignal + signal > c) {
                             return false;
@@ -316,8 +306,8 @@ public class Main {
             return false;
         }
 
-        public String getID() {
-            return ID.toString();
+        public List<Integer> getID() {
+            return ID;
         }
 
         @Override
@@ -336,8 +326,8 @@ public class Main {
         }
 
         @Override
-        public String getID() {
-            return ID.toString();
+        public List<Integer> getID() {
+            return Arrays.asList(ID);
         }
 
         @Override
