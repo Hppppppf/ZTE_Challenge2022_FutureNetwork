@@ -69,7 +69,7 @@ public class Main {
                 }
             }
         }
-        System.out.println("totalDelay:" + totalDelay);
+        //System.out.println("totalDelay:" + totalDelay);
     }
 
     public static Double greedyAlgorithm(Base start, Base end, Double startTime, Integer signal, Double lastDelay) {
@@ -98,7 +98,7 @@ public class Main {
             time_e = currentTime + delay_temp;
             while (!conflicts.addConflict(pre, last, time_s, time_e, signal)) {
                 time_s = time_s + 0.001;
-                last = select(last.getAvailable(currentTime), end, currentTime);
+                last = select(pre.getAvailable(currentTime), end, currentTime);
                 delay_temp = computeDelayBetweenUAVs(pre, last);
                 time_e = time_s + delay_temp;
             }
@@ -226,15 +226,15 @@ public class Main {
                     Double time_ss = Double.parseDouble(time.substring(0, time.indexOf('-')));
                     Double time_ee = Double.parseDouble(time.substring(time.indexOf('-') + 1, time.length()));
                     Integer currentSignal = entry.getValue();
-                    if (Math.abs(time_s - time_ss) < 0.01 && Math.abs(time_e - time_ee) < 0.01) {
+                    /*if (Math.abs(time_s - time_ss) < 0.01 && Math.abs(time_e - time_ee) < 0.01) {
                         if (currentSignal + signal > c) {
                             return false;
                         } else {
                             entry.setValue(currentSignal + signal);
                             return true;
                         }
-                    }
-                    /*if (time_s <= time_ss && time_ee <= time_e) {
+                    }*/
+                    if (time_s <= time_ss && time_ee <= time_e) {
                         if (currentSignal + signal > c) {
                             return false;
                         } else {
@@ -260,7 +260,6 @@ public class Main {
                     }
                     if (isChanged) signal += currentSignal;
                     if (signal > c) return false;
-                    */
                 }
             }
             this.add(u1, u2, time_s, time_e, signal);
