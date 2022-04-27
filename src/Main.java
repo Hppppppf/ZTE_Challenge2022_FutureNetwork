@@ -42,6 +42,7 @@ public class Main {
 
     public static Double DelayResult;
 
+    public static Double adjustmentDelaly = 0.01;
     static {
         try {
             fileWriter = new FileWriter(path);
@@ -80,7 +81,7 @@ public class Main {
         Double time_s = startTime;
         Double time_e = startTime + delay;
         while (!conflicts.addConflict(start, last, time_s, time_e, signal)) {
-            time_s = time_s + 0.001;//TODO
+            time_s = time_s + adjustmentDelaly;//TODO
             last = select(start.getAvailableUAVs(time_s), end, time_s);
             delay = computeDelayByPos(last.getPos(time_s), start.getPos());
             time_e = time_s + delay;
@@ -97,7 +98,7 @@ public class Main {
             time_s = currentTime;
             time_e = currentTime + delay_temp;
             while (!conflicts.addConflict(pre, last, time_s, time_e, signal)) {
-                time_s = time_s + 0.001;
+                time_s = time_s + adjustmentDelaly;
                 last = select(pre.getAvailable(currentTime), end, currentTime);
                 delay_temp = computeDelayBetweenUAVs(pre, last);
                 time_e = time_s + delay_temp;
@@ -113,7 +114,7 @@ public class Main {
         time_s = currentTime;
         time_e = currentTime + delayLast;
         while (!conflicts.addConflict(last, end, time_s, time_e, signal)) {
-            time_s = time_s + 0.001;
+            time_s = time_s + adjustmentDelaly;
             time_e = time_s + delayLast;
         }
         if (computeDistance(last.getPos(time_e), end.getPos()) > D) System.out.println("????????????????????????????");
