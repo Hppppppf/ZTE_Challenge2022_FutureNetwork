@@ -40,7 +40,7 @@ public class Main {
 
     public static Double DelayResult;
 
-    public static Double adjustmentDelaly = 0.01;
+    public static Double adjustmentDelaly = 0.0001;
     static {
         try {
             fileWriter = new FileWriter(path);
@@ -155,7 +155,11 @@ public class Main {
      * @return
      */
     public static UAVandAerialPlatform select(List<UAVandAerialPlatform> list, Base end, Double time) {
-        return list.stream().min((o1, o2) -> (int) (computeDistance(o1.getPos(time), end.getPos()) - computeDistance(o2.getPos(time), end.getPos()))).get();
+        //return list.stream().min((o1, o2) -> (int) (computeDistance(o1.getPos(time), end.getPos()) - computeDistance(o2.getPos(time), end.getPos()))).get();
+        return list
+                .stream()
+                .min(Comparator.comparingInt(o -> (int) (Math.abs(o.getPos(time).get(0) - end.getPos().get(0)) + Math.abs(o.getPos(time).get(1) - end.getPos().get(1)))))
+                .get();
     }
 
     interface UAVandAerialPlatform {
@@ -248,6 +252,14 @@ public class Main {
                     Double time_ss = Double.parseDouble(time.substring(0, time.indexOf('-')));
                     Double time_ee = Double.parseDouble(time.substring(time.indexOf('-') + 1, time.length()));
                     Integer currentSignal = entry.getValue();
+                    /*if (time_s == time_ss && time_ee == time_e) {
+                        if (currentSignal + signal > c) {
+                            return false;
+                        } else {
+                            isChanged = true;
+                            it.remove();
+                        }
+                    }*/
                     if (time_s <= time_ss && time_ee <= time_e) {
                         if (currentSignal + signal > c) {
                             return false;
