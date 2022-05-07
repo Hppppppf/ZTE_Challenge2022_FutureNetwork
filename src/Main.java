@@ -3,7 +3,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.prefs.BackingStoreException;
 
 
 /**
@@ -42,7 +41,6 @@ public class Main {
     public static Double DelayResult;
 
     public static Double adjustmentDelaly = 0.01;
-
     static {
         try {
             fileWriter = new FileWriter(path);
@@ -63,7 +61,7 @@ public class Main {
                         Integer signal = 1;
                         if (l < 3) signal = 3;
                         else signal = 1;
-                        Double delayTemp = greedyAlgorithm(baseList.get(j), baseList.get(k), timeList.get(i), signal);
+                        Double delayTemp = greedyAlgorithm(baseList.get(j), baseList.get(k), timeList.get(i), signal, lastDelay);
                         lastDelay += delayTemp;
                         totalDelay += delayTemp;
                     }
@@ -73,16 +71,7 @@ public class Main {
         System.out.println("totalDelay:" + totalDelay);
     }
 
-    /**
-     * 贪心算法
-     *
-     * @param start     起点基站
-     * @param end       终点基站
-     * @param startTime 起始时间
-     * @param signal    信号量
-     * @return 延迟量
-     */
-    public static Double greedyAlgorithm(Base start, Base end, Double startTime, Integer signal) {
+    public static Double greedyAlgorithm(Base start, Base end, Double startTime, Integer signal, Double lastDelay) {
         String ret = "";
         Double delay = 0.0;
         UAVandAerialPlatform last = select(start.getAvailableUAVs(startTime), end, startTime);
@@ -105,16 +94,16 @@ public class Main {
             last = select(last.getAvailable(currentTime), end, currentTime);
             Double delay_temp;
             time_s = currentTime;
-            if (pre.isPlantform() || last.isPlantform()) {
+            //if (pre.isPlantform() || last.isPlantform()){
                 delay_temp = computeDelayByPos(pre.getPos(time_s), last.getPos(time_s));
-            } else delay_temp = computeDelayBetweenUAVs(pre, last);
+            //}else delay_temp = computeDelayBetweenUAVs(pre, last);
             time_e = currentTime + delay_temp;
             while (!conflicts.addConflict(pre, last, time_s, time_e, signal)) {
                 time_s = time_s + adjustmentDelaly;
                 last = select(pre.getAvailable(currentTime), end, currentTime);
-                if (pre.isPlantform() || last.isPlantform()) {
+                //if (pre.isPlantform() || last.isPlantform()){
                     delay_temp = computeDelayByPos(pre.getPos(time_s), last.getPos(time_s));
-                } else delay_temp = computeDelayBetweenUAVs(pre, last);
+                //}else delay_temp = computeDelayBetweenUAVs(pre, last);
                 time_e = time_s + delay_temp;
             }
             /*if (last.isPlantform() || pre.isPlantform()) {
@@ -144,64 +133,14 @@ public class Main {
     /**
      * 贪心策略选择离终点最近的无人机/高空平台
      *
-     * @param list 待选择的无人机/高空平台列表
-     * @param end  终点基站
-     * @param time 当前时间
-     * @return 选择的无人机/高空平台
+     * @param list
+     * @param end
+     * @param time
+     * @return
      */
     public static UAVandAerialPlatform select(List<UAVandAerialPlatform> list, Base end, Double time) {
         return list.stream().min((o1, o2) -> (int) (computeDistance(o1.getPos(time), end.getPos()) - computeDistance(o2.getPos(time), end.getPos()))).get();
     }
-/*
-    /**
-     * 蚁群算法
-     *
-     * @param start     起点基站
-     * @param end       终点基站
-     * @param startTime 起始时间
-     * @param signal    信号量
-     * @return 最优解的时延
-     *//*
-    public static Double antColonyOptimization(Base start, Base end, Double startTime, Integer signal) {
-
-    }
-    static class Ant{
-        List<UAVandAerialPlatform> Tabu;
-        List<UAVandAerialPlatform> Allowed;
-        double[][] Delta;
-        UAVandAerialPlatform current;
-        Double delay;
-        Random random;
-        double alpha;
-        double beta;
-
-        Ant(double alpha,double beta,Base start,Double time){
-            this.alpha = alpha;
-            this.beta = beta;
-            this.delay = 0.0;
-            Tabu = new ArrayList<>();
-            Allowed = new ArrayList<>();
-            random = new Random();
-            Allowed.addAll(start.getAvailableUAVs(time));
-            Delta = new double[Allowed.size()][Allowed.size()];
-        }
-
-        public void chooseNext(Double time){
-            while (Allowed.size() > 0){
-                List<UAVandAerialPlatform> next = current.getAvailable(time);
-                int temp = next.size() - 1;
-                double all_p = 0.0;
-                for (int i = 0; i < next.size(); i++) {
-                    all_p +=
-                }
-            }
-        }
-    }
-
-    static class Graph{
-
-    }
-    */
 
     interface UAVandAerialPlatform {
         public List<Integer> getID();
@@ -229,18 +168,6 @@ public class Main {
         return distance;
     }
 
-    public static Double computeDistanceToEnd(List<Double> pos1, List<Double> pos2) {
-        Double count = computeDistance(pos1, pos2) / 120.0;
-        Double time = count * (2 * tf + verticalDelay + horizontalDelay);
-        Double distance = 0.0;
-        distance += Math.pow(pos1.get(0) + time * v - pos2.get(0), 2);
-        for (int i = 1; i < 3; i++) {
-            distance += Math.pow((pos1.get(i) - pos2.get(i)), 2);
-        }
-        distance = Math.pow(distance, 0.5);
-        return distance;
-    }
-
     /**
      * 通过位置计算转发时延
      *
@@ -256,7 +183,7 @@ public class Main {
     /**
      * 计算相邻无人机间信号传输时延
      *
-     * @param u1 无人机
+     * @param u1
      * @param u2
      * @return
      */
@@ -272,7 +199,7 @@ public class Main {
      */
     public static double dataProcessing(Double x) {
         BigDecimal bigDecimal = new BigDecimal(x);
-        BigDecimal ret = bigDecimal.setScale(4, RoundingMode.FLOOR);//TODO 可优化
+        BigDecimal ret = bigDecimal.setScale(4, RoundingMode.DOWN);//TODO 可优化
         return ret.doubleValue();
     }
 
@@ -498,8 +425,6 @@ public class Main {
         }
     }
 
-
-
     public static void Init() {
         baseList = new ArrayList<>();
         aerialPlatforms = new ArrayList<>();
@@ -507,9 +432,11 @@ public class Main {
         uavList = new HashMap<>();
         conflicts = new Conflicts();
 
-        baseList.add(new Base(0, Arrays.asList(45.73, 45.26, 0.0)));
-        baseList.add(new Base(1, Arrays.asList(1200.0, 700.0, 0.0)));
         baseList.add(new Base(2, Arrays.asList(-940.0, 1100.0, 0.0)));
+        baseList.add(new Base(1, Arrays.asList(1200.0, 700.0, 0.0)));
+        baseList.add(new Base(0, Arrays.asList(45.73, 45.26, 0.0)));
+
+
         //TODO
         aerialPlatforms.add(new AerialPlatform(0, Arrays.asList(-614.0, 1059.0, 24.0)));
         aerialPlatforms.add(new AerialPlatform(1, Arrays.asList(-943.0, 715.0, 12.0)));
@@ -519,6 +446,7 @@ public class Main {
         aerialPlatforms.add(new AerialPlatform(5, Arrays.asList(-923.0, 632.0, 37.0)));
         aerialPlatforms.add(new AerialPlatform(6, Arrays.asList(833.0, 187.0, 24.0)));
         aerialPlatforms.add(new AerialPlatform(7, Arrays.asList(-63.0, 363.0, 11.0)));
+
         timeList.addAll(Arrays.asList(0.0, 4.7, 16.4));
 
         DelayResult = 0.0;

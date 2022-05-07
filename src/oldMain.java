@@ -473,4 +473,54 @@ public class oldMain {
         ret.add(n_max[0]);
         return ret;
     }
+    /*
+    /**
+     * 蚁群算法
+     *
+     * @param start     起点基站
+     * @param end       终点基站
+     * @param startTime 起始时间
+     * @param signal    信号量
+     * @return 最优解的时延
+     *//*
+    public static Double antColonyOptimization(Base start, Base end, Double startTime, Integer signal) {
+
+    }
+    static class Ant{
+        List<UAVandAerialPlatform> Tabu;
+        List<UAVandAerialPlatform> Allowed;
+        double[][] Delta;
+        UAVandAerialPlatform current;
+        Double delay;
+        Random random;
+        double alpha;
+        double beta;
+
+        Ant(double alpha,double beta,Base start,Double time){
+            this.alpha = alpha;
+            this.beta = beta;
+            this.delay = 0.0;
+            Tabu = new ArrayList<>();
+            Allowed = new ArrayList<>();
+            random = new Random();
+            Allowed.addAll(start.getAvailableUAVs(time));
+            Delta = new double[Allowed.size()][Allowed.size()];
+        }
+
+        public void chooseNext(Double time){
+            while (Allowed.size() > 0){
+                List<UAVandAerialPlatform> next = current.getAvailable(time);
+                int temp = next.size() - 1;
+                double all_p = 0.0;
+                for (int i = 0; i < next.size(); i++) {
+                    all_p +=
+                }
+            }
+        }
+    }
+
+    static class Graph{
+
+    }
+    */
 }
