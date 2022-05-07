@@ -57,10 +57,26 @@ public class Main {
                 for (int k = 0; k < 3; k++) {
                     if (j == k) continue;
                     Double lastDelay = 0.0;
-                    for (int l = 0; l < 4; l++) {
+                    for (int l = 0; l < 3; l++) {
+                        Integer signal = 3;
+                        /*if (l < 3) signal = 3;
+                        else signal = 1;*/
+                        Double delayTemp = greedyAlgorithm(baseList.get(j), baseList.get(k), timeList.get(i), signal, lastDelay);
+                        lastDelay += delayTemp;
+                        totalDelay += delayTemp;
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                for (int k = 0; k < 3; k++) {
+                    if (j == k) continue;
+                    Double lastDelay = 0.0;
+                    for (int l = 0; l < 1; l++) {
                         Integer signal = 1;
-                        if (l < 3) signal = 3;
-                        else signal = 1;
+                        /*if (l < 3) signal = 3;
+                        else signal = 1;*/
                         Double delayTemp = greedyAlgorithm(baseList.get(j), baseList.get(k), timeList.get(i), signal, lastDelay);
                         lastDelay += delayTemp;
                         totalDelay += delayTemp;
@@ -435,7 +451,6 @@ public class Main {
         baseList.add(new Base(2, Arrays.asList(-940.0, 1100.0, 0.0)));
         baseList.add(new Base(1, Arrays.asList(1200.0, 700.0, 0.0)));
         baseList.add(new Base(0, Arrays.asList(45.73, 45.26, 0.0)));
-
 
         //TODO
         aerialPlatforms.add(new AerialPlatform(0, Arrays.asList(-614.0, 1059.0, 24.0)));
